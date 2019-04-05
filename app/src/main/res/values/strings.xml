@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">QRCodeCamera</string>
+    <string name="result_text_default">Lütfen QR kodunu kameraya odaklayınız.</string>
+</resources>
