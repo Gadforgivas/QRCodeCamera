@@ -1,18 +1,19 @@
 package com.info.qrcodecamera;
 
+import java.util.LinkedList;
 import java.util.List;
 
 public class DecodedQRRecord {
 
-    private List<DecodedQRRecord> records;
+    private List<DecodedQR> records = new LinkedList<>();
     private String id;
     private long date;
 
-    public List<DecodedQRRecord> getRecords() {
+    public List<DecodedQR> getRecords() {
         return records;
     }
 
-    public void setRecords(List<DecodedQRRecord> records) {
+    public void setRecords(List<DecodedQR> records) {
         this.records = records;
     }
 

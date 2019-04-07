@@ -8,11 +8,15 @@ import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.support.v7.widget.DefaultItemAnimator;
+import android.support.v7.widget.LinearLayoutManager;
+import android.support.v7.widget.RecyclerView;
 import android.util.SparseArray;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
 import android.widget.Button;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import com.google.android.gms.vision.CameraSource;
@@ -24,8 +28,14 @@ import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -34,6 +44,10 @@ public class MainActivity extends AppCompatActivity {
     CameraSource cameraSource;
     BarcodeDetector barcodeDetector;
     final int RequestCameraPermissionID = 1001;
+    private LinearLayout qrLayout;
+    private LinearLayout resultLayout;
+    private RecyclerView resultRecyclerView;
+    private ResultsAdapter resultsAdapter;
 
     private Button startBtn;
     private Button stopBtn;
@@ -47,6 +61,9 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean isRunning = false;
 
+    private List<QrResult> qrResults = null;
+
+    private int currentPage = 0;
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
@@ -84,11 +101,20 @@ public class MainActivity extends AppCompatActivity {
                 .setBarcodeFormats(Barcode.QR_CODE).build();
         cameraSource = new CameraSource.Builder(this, barcodeDetector).build();
 
+        qrLayout = (LinearLayout) findViewById(R.id.qr_layout);
+        resultLayout = (LinearLayout) findViewById(R.id.results_layout);
+        resultRecyclerView = (RecyclerView) findViewById(R.id.result_recyclerview);
+
+
+        initRecyclerView();
         //Add Event
 
         startBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                if(decodedSet != null) {
+                    decodedSet.clear();
+                }
                 totalRead = 0;
                 updateStatusTv();
                 decodedQRRecord = new DecodedQRRecord();
@@ -100,7 +126,10 @@ public class MainActivity extends AppCompatActivity {
         stopBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                setPage(1);
                 isRunning = false;
+                qrResults = generateQRResultArray();
+                resultsAdapter.update(qrResults);
             }
         });
 
@@ -164,11 +193,58 @@ public class MainActivity extends AppCompatActivity {
                             txtResult.setText(decodedQR.getRawCode());
                             totalRead++;
                             updateStatusTv();
+                            decodedQRRecord.getRecords().add(decodedQR);
                         }
                     });
                 }
             }
         });
+    }
+
+    private void initRecyclerView(){
+        resultsAdapter = new ResultsAdapter(this,new LinkedList<QrResult>());
+
+        RecyclerView.LayoutManager mLayoutManager = new LinearLayoutManager(this);
+        resultRecyclerView.setItemAnimator(new DefaultItemAnimator());
+        resultRecyclerView.setLayoutManager(mLayoutManager);
+
+        // Adapter might be null if object created via constructor without adapter parameter.
+        if(resultsAdapter != null) {
+            resultRecyclerView.setAdapter(resultsAdapter);
+        }
+    }
+
+    private List<QrResult> generateQRResultArray(){
+        List<DecodedQR> records = decodedQRRecord.getRecords();
+
+        Set<String> qrResultsSet = new HashSet<>();
+        Map<String,QrResult> qrResultsMap = new HashMap<>();
+        List<QrResult> qrResultsList = new LinkedList<>();
+
+        for(DecodedQR decodedQR : records){
+            String productCode = decodedQR.getProductCode();
+
+            if(qrResultsSet.contains(productCode)){
+                // Daha önce eklendi
+                QrResult qrResult = qrResultsMap.get(productCode);
+                qrResult.setQuantity(qrResult.getQuantity()+Integer.parseInt(decodedQR.getNumberofPiece()));
+                qrResultsMap.put(productCode,qrResult);
+            }else{
+                // Daha önce eklenmedi
+                qrResultsSet.add(productCode);
+                QrResult qrResult = new QrResult();
+                qrResult.setName(productCode);
+                qrResult.setQuantity(Integer.parseInt(decodedQR.getNumberofPiece()));
+                qrResultsMap.put(productCode,qrResult);
+            }
+        }
+
+        for(Object o : qrResultsSet.toArray()){
+            String s = (String) o;
+            qrResultsList.add(qrResultsMap.get(s));
+        }
+
+        return qrResultsList;
     }
 
     private DecodedQR getDecodedQRFromReader(Detector.Detections<Barcode> detections){
@@ -228,6 +304,23 @@ public class MainActivity extends AppCompatActivity {
         statusTv.setText(String.format("S : %d", totalRead));
     }
 
+    private void setPage(int page){
+        currentPage = page;
+        if(page == 0){
+            resultLayout.setVisibility(View.GONE);
+            qrLayout.setVisibility(View.VISIBLE);
+        }else if(page == 1){
+            resultLayout.setVisibility(View.VISIBLE);
+            qrLayout.setVisibility(View.GONE);
+        }
+    }
+
+    @Override
+    public void onBackPressed() {
+        if(currentPage == 1){
+            setPage(0);
+        }
+    }
 }
 
 
