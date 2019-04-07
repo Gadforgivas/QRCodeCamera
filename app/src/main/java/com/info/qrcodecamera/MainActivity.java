@@ -8,29 +8,24 @@ import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
-import android.util.Log;
 import android.util.SparseArray;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.view.View;
+import android.widget.Button;
 import android.widget.TextView;
 
 import com.google.android.gms.vision.CameraSource;
 import com.google.android.gms.vision.Detector;
 import com.google.android.gms.vision.barcode.Barcode;
 import com.google.android.gms.vision.barcode.BarcodeDetector;
-import com.tunabaranurut.microdb.base.MicroDB;
 
 import java.io.IOException;
-import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-
-import static com.google.firebase.crash.FirebaseCrash.log;
+import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -39,6 +34,18 @@ public class MainActivity extends AppCompatActivity {
     CameraSource cameraSource;
     BarcodeDetector barcodeDetector;
     final int RequestCameraPermissionID = 1001;
+
+    private Button startBtn;
+    private Button stopBtn;
+    private TextView statusTv;
+
+    private HashSet<String> decodedSet;
+
+    private int totalRead = 0;
+
+    private DecodedQRRecord decodedQRRecord = null;
+
+    private boolean isRunning = false;
 
 
     @Override
@@ -69,13 +76,33 @@ public class MainActivity extends AppCompatActivity {
         cameraPreview = (SurfaceView) findViewById(R.id.cameraPreview);
         txtResult = (TextView) findViewById(R.id.txtResult);
 
+        startBtn = (Button) findViewById(R.id.start_btn);
+        stopBtn = (Button) findViewById(R.id.stop_btn);
+        statusTv = (TextView) findViewById(R.id.status_tv);
 
         barcodeDetector = new BarcodeDetector.Builder(this)
                 .setBarcodeFormats(Barcode.QR_CODE).build();
-        cameraSource = new CameraSource.Builder(this, barcodeDetector)
-                .setRequestedPreviewSize(640, 480).build();
+        cameraSource = new CameraSource.Builder(this, barcodeDetector).build();
 
         //Add Event
+
+        startBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                totalRead = 0;
+                updateStatusTv();
+                decodedQRRecord = new DecodedQRRecord();
+                decodedQRRecord.setDate(new Date().getTime());
+                isRunning = true;
+            }
+        });
+
+        stopBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                isRunning = false;
+            }
+        });
 
         cameraPreview.getHolder().addCallback(new SurfaceHolder.Callback() {
             @Override
@@ -113,67 +140,97 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void receiveDetections(Detector.Detections<Barcode> detections) {
 
-                /*Date today = Calendar.getInstance().getTime();
+//                Set<String> uniqueCodesList = new HashSet<>();
 
-                //Constructs a SimpleDateFormat
-                SimpleDateFormat simpleDateFormat =  new SimpleDateFormat();
 
-                String currentTime = simpleDateFormat.format(today);
-                log("Current Time"+ currentTime);
+                if(!isRunning){
+                    return;
+                }
+                final DecodedQR decodedQR = getDecodedQRFromReader(detections);
 
-                try {
-                    Date date = simpleDateFormat.parse(currentTime);
-
-                    long epochTime = date.getTime();
-
-                    log("Current Time in Epoch." + epochTime);
-                } catch (ParseException e) {
-                    e.printStackTrace();
-                }*/
-
-                final SparseArray<Barcode> qrCodes = detections.getDetectedItems();
-                final DecodeQR decodeQR = new DecodeQR();
-                Set<String> uniqueCodesList = new HashSet<>();
-
-                String s = qrCodes.valueAt(0).displayValue;
-                final String splitCodes[] = s.split("%");
-
-                String uniqueCode    = splitCodes[0];
-                String companyCode   = splitCodes[1];
-                String productCode   = splitCodes[2];
-                String numberofPiece = splitCodes[3];
-                String staticCode    = splitCodes[4];
-
-                decodeQR.setUniqueCode(uniqueCode);
-                decodeQR.setCompanyCode(companyCode);
-                decodeQR.setProductCode(productCode);
-                decodeQR.setNumberofPiece(numberofPiece);
-                decodeQR.setStaticCode(staticCode);
-
-                //uniqueCodesList.add(decodeQR.getUniqueCode());     // Bu code çalışmasını en gelliyor aşşağıdaki "if" statement la alakalı olmalı
-
-                //decodeQR.saveDecodeQRCodes();
-
-                if(!uniqueCodesList.contains(uniqueCode)){
-
-                    if(qrCodes.size()!=0 )
-                    {
-                        txtResult.post(new Runnable() {
-                            @Override
-                            public void run() {
-                                //Vibrate
-                                Vibrator vibrator= (Vibrator) getApplicationContext().getSystemService(Context.VIBRATOR_SERVICE);
-                                vibrator.vibrate(500);
-                                txtResult.setText(qrCodes.valueAt(0).displayValue);
-                            }
-                        });
-                    }
+                if(decodedQR == null){
+                    return;
                 }
 
+                boolean hasReadBefore = hasReadedBefore(decodedQR);
+
+                if(!hasReadBefore){
+                    txtResult.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            //Vibrate
+                            Vibrator vibrator= (Vibrator) getApplicationContext().getSystemService(Context.VIBRATOR_SERVICE);
+                            vibrator.vibrate(500);
+                            txtResult.setText(decodedQR.getRawCode());
+                            totalRead++;
+                            updateStatusTv();
+                        }
+                    });
+                }
             }
         });
     }
+
+    private DecodedQR getDecodedQRFromReader(Detector.Detections<Barcode> detections){
+
+        final DecodedQR decodedQR = new DecodedQR();
+
+        final SparseArray<Barcode> qrCodes = detections.getDetectedItems();
+        if(qrCodes.size() <= 0){
+            return null;
+        }
+        String s = qrCodes.valueAt(0).displayValue;
+        final String splitCodes[] = s.split("%");
+        if(splitCodes.length < 5){
+            return null;
+        }
+
+        Date today = Calendar.getInstance().getTime();
+        SimpleDateFormat simpleDateFormat =  new SimpleDateFormat("dd MM EEE",Locale.US);
+
+        String todayStr = simpleDateFormat.format(today);
+        long epochToday = today.getTime();
+
+        String uniqueCode    = splitCodes[0];
+        String companyCode   = splitCodes[1];
+        String productCode   = splitCodes[2];
+        String numberofPiece = splitCodes[3];
+        String staticCode    = splitCodes[4];
+
+        decodedQR.setUniqueCode(uniqueCode);
+        decodedQR.setCompanyCode(companyCode);
+        decodedQR.setProductCode(productCode);
+        decodedQR.setNumberofPiece(numberofPiece);
+        decodedQR.setStaticCode(staticCode);
+        decodedQR.setRawCode(s);
+        decodedQR.setTimestamp(epochToday);
+        return decodedQR;
+    }
+
+    private boolean hasReadedBefore(DecodedQR decodedQR){
+        return hasReadedBefore(decodedQR.getUniqueCode());
+    }
+
+    private boolean hasReadedBefore(String uniqueId){
+        if(decodedSet == null){
+            decodedSet = new HashSet<>();
+        }
+
+        if(decodedSet.contains(uniqueId)){
+            return true;
+        }else{
+            decodedSet.add(uniqueId);
+            return false;
+        }
+    }
+
+    private void updateStatusTv(){
+        statusTv.setText(String.format("S : %d", totalRead));
+    }
+
 }
+
+
 
 //depolama lazım
 //POJO yaratırsam local stroge da save

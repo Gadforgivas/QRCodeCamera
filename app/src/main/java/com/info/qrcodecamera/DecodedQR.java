@@ -4,35 +4,34 @@ import android.content.Context;
 
 import com.tunabaranurut.microdb.base.MicroDB;
 
-public class DecodeQR {
+public class DecodedQR {
 
+    private long timestamp;
     private String uniqueCode;
     private String companyCode;
     private String productCode;
     private String numberofPiece;
     private String staticCode;
-    public MicroDB microDB;
-    public DecodeQR decodeQR;
-    public MainActivity mainActivity;
-
-public void saveDecodeQRCodes(){
-
-    microDB= new MicroDB(mainActivity.getApplicationContext()); // parantez içi ?????
-
-    try {
-        microDB.save("uniqueCode"   ,decodeQR.getUniqueCode());
-        microDB.save("companyCode"  ,decodeQR.getCompanyCode());
-        microDB.save("productCode"  ,decodeQR.getProductCode());
-        microDB.save("numberofPiece",decodeQR.getNumberofPiece());
-        microDB.save("staticCode"   ,decodeQR.getStaticCode());
-
-    } catch (Exception e) {
-        e.printStackTrace();
-    }
-
-}
+    private String rawCode;
 
     public void DecodeQR(){}
+
+//    public void saveDecodeQRCodes(Context context){
+//
+//        microDB= new MicroDB(context); // parantez içi ?????
+//
+//        try {
+//            microDB.save("uniqueCode"   , this.getUniqueCode());
+//            microDB.save("companyCode"  , this.getCompanyCode());
+//            microDB.save("productCode"  , this.getProductCode());
+//            microDB.save("numberofPiece", this.getNumberofPiece());
+//            microDB.save("staticCode"   , this.getStaticCode());
+//
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//        }
+//
+//    }
 
     public String getUniqueCode() {
         return uniqueCode;
@@ -70,5 +69,21 @@ public void saveDecodeQRCodes(){
 
     public void setStaticCode(String staticCode) {
         this.staticCode = staticCode;
+    }
+
+    public long getTimestamp() {
+        return timestamp;
+    }
+
+    public void setTimestamp(long timestamp) {
+        this.timestamp = timestamp;
+    }
+
+    public String getRawCode() {
+        return rawCode;
+    }
+
+    public void setRawCode(String rawCode) {
+        this.rawCode = rawCode;
     }
 }
